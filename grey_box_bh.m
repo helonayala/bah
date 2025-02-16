@@ -8,16 +8,23 @@ import casadi.*
 
 %%%%%%%%%%%% load data %%%%%%%%%%%%%%%%%%%%%
 % File to load
+% Dados de treino
 load('seqDegrausFixo2.mat')
 u_data = u;
 y_data = y;
+
+%Dados de teste
+load("malha_fechada2.mat")
+u_test = u;
+y_test = y;
 
 N  = length(u_data);  % Number of samples
 Ts = 0.1;  % sampling time (seconds)
 fs = 1/Ts;       % Sampling frequency [hz]
 t = ((1:N)-1)*Ts;
 
-x0 = DM([y(1),0]); % initial condition for simulation
+x0 = DM([y_data(1),0]); % initial condition for simulation
+x0_test = DM([y_test(1), 0]);
 
 %%%%%%%%%%%% MODELING %%%%%%%%%%%%%%%%%%%%%
 om  = MX.sym('om');  % Velocidade angular
@@ -32,8 +39,8 @@ kn = MX.sym('kn'); % Ganho
 bn   = MX.sym('bn'); %viscosidade 
 
 params   = [In;kn;bn];
-parammax = [100; 500; 50];
-parammin = [1; 100;  0];
+parammax = [10; 500; 5]; 
+parammin = [0; 10; 0];
 
 nparam = length(params);
 param_guess = rand(nparam,1);
@@ -153,39 +160,79 @@ bhat   = denorm(paramhat(3),parammax(3),parammin(3));
 disp('Parametros identificados:')
 [Ihat, khat, bhat]
 
-disp('Parametros IDIM:')
-paramhatIDIM = [95.1089, 203.5034, 20.3935]';
-paramhatIDIM' 
-paramhatIDIM = normalize(paramhatIDIM,parammax,parammin); % simulation
 
-
-%% compare both solutions (IDIM vs. CASADI)
+%% compare (real vs. CASADI) - train
 
 Xhat = all_samples(x0, u_data, repmat(paramhat,1,N));
 Xhat = Xhat.full;
 yhat = Xhat(1,:)';
 
-XhatIDIM = all_samples(x0, u_data, repmat(paramhatIDIM,1,N));
-XhatIDIM = XhatIDIM.full;
-yhatIDIM = XhatIDIM(1,:)';
-
 figure
 hold on
 plot(t,y_data,'k-','linewidth',1.5)
 plot(t,yhat,'r--','linewidth',1.5)
-plot(t,yhatIDIM,'g--','linewidth',1.5)
 grid on
 xlabel('time')
-legend({'real','casadi','IDIM'},'location','best')
+legend({'real','casadi'},'location','best')
+title('Train')
 
 figure
 hold on
 plot(t,y_data-yhat,'r-','linewidth',1.5)
-plot(t,y_data-yhatIDIM,'g--','linewidth',1.5)
 grid on
 xlabel('time')
-ylabel('error')
-legend({'casadi','IDIM'},'location','best')
+ylabel('error - train')
+legend({'casadi'},'location','best')
+title('Error - train')
 
 %% output data
 save outputFriction.mat yhat u_data y_data t
+
+%% Dados de teste 
+
+N_test = length(u_test);
+t_test = ((1:N_test)-1) * Ts;
+
+% Compare (real x CASADI) - test
+Xhat_test = all_samples(x0_test, u_test, repmat(paramhat, 1, N_test));
+Xhat_test = Xhat_test.full;
+yhat_test = Xhat_test(1,:)';
+
+figure
+hold on
+plot(t_test, y_test, 'b-', 'linewidth', 1.5) % Dados MF
+plot(t_test, yhat_test, 'r--', 'linewidth', 1.5) % Saída Casadi
+grid on
+xlabel('Time')
+legend({'Real MF', 'Casadi'}, 'location', 'best')
+title('Test')
+
+% Erro
+figure
+hold on
+plot(t_test, y_test - yhat_test, 'm-', 'linewidth', 1.5)
+grid on
+xlabel('Time')
+ylabel('Error')
+legend({'Error (casadi)'}, 'location', 'best')
+title('Error - test')
+
+%% output data (test)
+save outputTestFriction.mat yhat_test u_test y_test t_test
+
+%%Métricas 
+
+mse_train = mean((y_data - yhat).^2);
+mse_test = mean((y_test - yhat_test).^2);
+
+R_train = corrcoef(y_data, yhat);
+R2_train = R_train(1,2)^2;
+
+R_test = corrcoef(y_test, yhat_test);
+R2_test = R_test(1,2)^2;
+
+disp('-------------- Train x Test (Metrics) --------------')
+fprintf('R² Train: %.4f\n', R2_train);
+fprintf('MSE Train: %.4f\n', mse_train);
+fprintf('R² Test: %.4f\n', R2_test);
+fprintf('MSE Test: %.4f\n', mse_test);
