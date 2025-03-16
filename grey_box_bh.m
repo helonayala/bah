@@ -36,13 +36,15 @@ controls = ue;
 
 In = MX.sym('In'); %Inércia
 kn = MX.sym('kn'); % Ganho
-bn   = MX.sym('bn'); %viscosidade 
+bn   = MX.sym('bn'); %viscosidade
+Fcn = MX.sym('Fcn'); %Atrito de Coulomb
 
-params   = [In;kn;bn];
-parammax = [10; 500; 5]; 
-parammin = [0; 10; 0];
+params   = [In;kn;bn; Fcn];
+parammax = [290; 550; 50; 40]; 
+parammin = [0; 10; 0; 0];
 
 nparam = length(params);
+rng(42);
 param_guess = rand(nparam,1);
 
 lbx = zeros(nparam,1);
@@ -51,8 +53,11 @@ ubx = ones(nparam,1);
 I    = denorm(In,   parammax(1),parammin(1));
 k   = denorm(kn,  parammax(2),parammin(2));
 b   = denorm(bn,  parammax(3),parammin(3));
+Fc   = denorm(Fcn,  parammax(4),parammin(4));
 
-rhs = [om_p; (k*ue - b*om)/I];
+Ff = Fc*sign(om);
+
+rhs = [om_p; (k*ue - b*om - Ff)/I];
 
 % Form an ode function
 ode = Function('ode',{states,controls,params},{rhs});
@@ -156,9 +161,10 @@ end
 Ihat    = denorm(paramhat(1),parammax(1),parammin(1));
 khat   = denorm(paramhat(2),parammax(2),parammin(2));
 bhat   = denorm(paramhat(3),parammax(3),parammin(3));
+Fchat   = denorm(paramhat(4),parammax(4),parammin(4));
 
 disp('Parametros identificados:')
-[Ihat, khat, bhat]
+[Ihat, khat, bhat, Fchat]
 
 
 %% compare (real vs. CASADI) - train
@@ -236,3 +242,6 @@ fprintf('R² Train: %.4f\n', R2_train);
 fprintf('MSE Train: %.4f\n', mse_train);
 fprintf('R² Test: %.4f\n', R2_test);
 fprintf('MSE Test: %.4f\n', mse_test);
+
+disp('Parametros normalizados:')
+disp(paramhat)
