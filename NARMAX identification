@@ -1,0 +1,130 @@
+#!pip install sysidentpy
+import matplotlib.pyplot as plt
+import pandas as pd
+from sysidentpy.model_structure_selection import FROLS
+from sysidentpy.utils.display_results import results
+from sysidentpy.basis_function import Polynomial
+from sysidentpy.parameter_estimation import ( TotalLeastSquares, RecursiveLeastSquares, NonNegativeLeastSquares, LeastMeanSquares, AffineLeastMeanSquares, )
+from sysidentpy.metrics import root_relative_squared_error
+from sysidentpy.utils.generate_data import get_siso_data
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+import numpy as np
+import csv
+
+rmseT=[]
+maeT=[]
+r2T=[]
+
+a=pd.read_csv('treino u.csv')
+intr=a.to_numpy()
+b=pd.read_csv('teste u.csv')
+inte=b.to_numpy()
+c=pd.read_csv('treino y.csv')
+outr=c.to_numpy()
+d=pd.read_csv('teste y.csv')
+oute=d.to_numpy()
+
+
+for i in range(2,6):
+  for j in range(2,6):
+    for k in range(2,4):
+      basis_function = Polynomial(degree=k)
+      estimator =AffineLeastMeanSquares()
+      model = FROLS(
+          order_selection=False,
+          n_terms=6,
+          ylag=i,
+          xlag=j,
+          estimator=estimator,
+          basis_function=basis_function,
+          model_type="NARMAX"
+      )
+      model.fit(X=intr, y=outr)
+
+      # Fazendo previsões
+      yhat = model.predict(X=inte, y=oute)
+
+      # Calculando o erro relativo quadrático raiz
+      print("ylag= ",i,"xlag= ",j,"ordem= ",k)
+      rmse = np.sqrt(mean_squared_error(oute, yhat))
+      rmseT.append(rmse)
+      print('rmse = ', rmse)
+      mae=mean_absolute_error(oute,yhat)
+      maeT.append(mae)
+      print('mae = ', mae)
+      r2=r2_score(oute,yhat)
+      r2T.append(r2)
+      print("r² é: ",r2)
+      print("\n")
+      print(i)
+      print(j)
+      print(k)
+
+#Após verificar quais ordens/lags possuem o menor erro, descomentar esta parte de baixo e 
+#comentar a de cima, testando com estes parâmetros
+'''
+basis_function = Polynomial(degree=3)
+estimator =RecursiveLeastSquares()
+model = FROLS(
+    order_selection=False,
+    n_terms=6, 
+    ylag=5,
+    xlag=4,
+    estimator=estimator,
+    basis_function=basis_function,
+    model_type="NARMAX"
+)
+model.fit(X=intr, y=outr)
+
+# Fazendo previsões
+yhat = model.predict(X=inte, y=oute)
+
+# Calculando o erro relativo quadrático raiz
+# print("ylag= ",i,"xlag= ",j,"ordem= ",k)
+rmse = np.sqrt(mean_squared_error(oute, yhat))
+rmseT.append(rmse)
+print('rmse = ', rmse)
+mae=mean_absolute_error(oute,yhat)
+maeT.append(mae)
+print('mae = ', mae)
+r2=r2_score(oute,yhat)
+r2T.append(r2)
+print("r² é: ",r2)
+print("\n")
+
+
+r = pd.DataFrame(
+    results(
+        model.final_model,
+        model.theta,
+        model.err,
+        model.n_terms,
+        err_precision=8,
+        dtype="sci",
+    ),
+    columns=["Regressors", "Parameters", "ERR"],
+)
+print('r = ',r)
+plt.figure(figsize=(12, 6))
+
+# Plotar dados reais
+plt.plot(outr, label='Dados Reais', color='blue', linewidth=2)
+
+plt.figure(figsize=(12, 6))
+# Plotar dados reais
+plt.plot(oute, label='Dados Reais', color='blue', linewidth=2)
+
+# Plotar previsões do modelo
+plt.plot(yhat, label='Previsões do Modelo NARMAX', color='red', linestyle='dashed', linewidth=2)
+
+# Adicionar rótulos e título
+plt.xlabel('Índice de Amostra')
+plt.ylabel('Valor')
+plt.title('Comparação entre Dados Reais e Previsões do Modelo NARMAX')
+plt.legend()
+plt.grid(True)
+plt.xlim(0, 2150)
+plt.show()
+'''
+df = pd.DataFrame(r2T)
+df.to_csv("arquivo.csv", index=False, encoding="utf-8")
